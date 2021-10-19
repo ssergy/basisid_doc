@@ -1,0 +1,546 @@
+swagger: '2.0'
+info:
+  version: 2.0.0
+  description: |
+    ## BASIS ID verification API
+
+    **The order of terminal operations with API:**
+
+
+    1) Call method: /request-widget
+
+
+    Using the method, you get widget url and can send basic user parameters (optional)
+
+    2) Status callback
+
+    **Final status callback**
+
+
+    Callback is being sent if a user’s status is changed to ‘approved’ or ‘declined’.
+    In case of post moderation, callback is only being sent when your company performs double check on the client.
+    Additionally, it is possible to set up callback after the automatic check.
+
+    To enable callback, please install Callback Url in CRM settings.
+
+    An example of callback request:
+    ```
+    {"user_id":2027,
+     "user_hash":"27c5728a-7130-408d-b0a1-d55ed8ae7b2f",
+     "status":11,
+     "signature":"7ca05937a0e5c42147be2aa23ffad87e80bd866e1ff7950ec6841d4d87d844fe",
+     "autocheck_bad_reasons":""}
+    ```
+
+    * user_id - user’s ID
+    * user_hash - user’s unique hash
+    * status - user’s status (10 - user is confirmed; 11 - user is declined)
+    * autocheck_bad_reasons - the reason for the request to be automatically declined
+    * signature - signature of the request
+
+    Your request is signed as BASIS_API_SECRET2 (can be found in CRM settings)
+    To create a signature you need to get sha256 hash from concatenation of the following line:
+
+    ```
+    BASIS_API_SECRET2+user_id+user_hash+status+autocheck_bad_reasons
+    ```
+
+    Java signature example:
+    ```
+    String sign256hex = org.apache.commons.codec.digest.DigestUtils.sha256Hex(BASIS_API_SECRET2 + user_id + user_hash + status + autocheck_bad_reasons);
+    if (sign256hex.equals(signature)) {
+        // Signed ...
+    }
+    ```
+
+    PHP signature example:
+    ```
+    $signature = hash('sha256', BASIS_API_SECRET2 . $inp['user_id'] . $inp['user_hash'] . $inp['status'] . $inp['autocheck_bad_reasons']);
+    if ($signature == $inp['signature']) {
+
+    }
+    ```
+
+    In response to callback you have to send the status “200OK” with any text, for example, “OK”.
+
+    If a response has not been received or it did not contain “200OK”, the system stops sending requests for 3 minutes.
+    After 3 minutes it retries to send a request.  And so on.
+
+    <br />
+    <br />
+
+    **The reasons for the request to be automatically declined**
+
+    You can have one reason or many comma separated reasons in "autocheck_bad_reasons" field:
+
+    * pep - politically exposed person
+    * law enforcement
+    * regulatory enforcement
+    * other bodies
+    * sanctions  - government etc sanctions
+
+    * black_list - A person with the same name is mentioned in sanction lists.
+    * card - Credit card is not valid (problem with cc check)
+    * video - The passport/ID picture and face on the video are not similar. No match in facial recognition.
+    * mrz - The first name/surname/middle name/date of birth do not match with passport's machine readable zone (MRZ). Or  document is not valid.
+
+    <br />
+    <br />
+
+
+    **"Requested" status callback**
+
+    Callback is being sent if a user’s status is changed to ‘requested’.
+
+    By default, this functionality is disabled.
+    BASIS ID sends requests to the user directly to the email.
+    Contact BASIS ID support (support@basisid.com) if you need this functionality.
+
+    An example of callback request:
+
+    ```
+    {
+      "callback_type": "request",
+      "user_id":2027,
+      "user_hash":"27c5728a-7130-408d-b0a1-d55ed8ae7b2f",
+      "status":3,
+      "signature":"7ca05937a0e5c42147be2aa23ffad87e80bd866e1ff7950ec6841d4d87d844fe",
+      "reason": "0,5",
+      "request": "1,2",
+      "message": "Request message",
+    }
+    ```
+
+    * user_id - user’s ID
+    * user_hash - user’s unique hash
+    * status - user’s status (3 - user was requested)
+    * autocheck_bad_reasons - the reason for the request to be automatically declined
+    * signature - signature of the request
+    * reason - list of request reasons separated with ','.
+
+    0 - No required data
+    1 - Data has mistakes
+    2 - Email not confirmed
+    3 - Bad photo quality
+    4 - No required photos
+    5 - No MRZ zone on document photos
+    6 - Bad video quality
+    7 - Bad bank statement photo
+    8 - Bank statement is old
+    9 - Social accounts are not relevant
+    10 - Bad quality of utility bill photo
+    11 - Utility bill is old
+    12 - Bad quality of proof of income photo
+    13 - Proof of income is old
+
+    * request - list of requested fields separated with ','.
+
+    0 - Name
+    1 - Gender
+    2 - Birthday
+    3 - Country of Nationality
+    4 - Full Address
+    5 - Phone
+    6 - E-mail
+    7 - Passport/ID card photo
+    8 - Client photo
+    9 - Video
+    10 - Bank statement
+    11 - Social networks accounts
+    12 - Utility bill
+    13 - Proof of income
+
+    * message - request message
+
+    Your request is signed as BASIS_API_SECRET2 (can be found in CRM settings)
+    To create a signature you need to get sha256 hash from concatenation of the following line:
+
+    ```
+    BASIS_API_SECRET2+user_id+user_hash+status+reason+request+message
+    ```
+    <br />
+    <br />
+
+  title: BASIS ID Verification API
+tags:
+  - name: send data
+  - name: receive data
+consumes:
+  - application/json
+produces:
+  - application/json
+host: api.basisid.com
+basePath: /
+paths:
+  /auth/request-widget:
+    post:
+      tags:
+        - send data
+      summary: Verification start - get widget url
+      description: >-
+        The first step of verification a new user, receiving widget URL and sending basic data about user
+        to server, if required.
+
+
+        The list of data sent to the api depends on the company settings made by the manager.
+      operationId: request-widget
+      parameters:
+        - name: key
+          in: query
+          required: true
+          type: string
+          description: BASIS ID API KEY (from panel)
+          x-example: prod-pHmeBukoXXXXXpXFjOhvjmrXxwwbtZOn
+        - name: secret
+          in: query
+          required: true
+          type: string
+          description: BASIS ID Secret 1 (from panel)
+          x-example: s1-pHmeBukoXXXXfdfdfdXxwwbtZOn
+        - name: first_name
+          in: query
+          required: true
+          type: string
+          description: User first name. Required if enabled by manager.
+          x-example: John
+        - name: last_name
+          in: query
+          required: true
+          type: string
+          description: User last name. Required if enabled by manager.
+          x-example: Doe
+        - name: middle_name
+          in: query
+          required: false
+          type: string
+          description: User middle name
+          x-example: Young
+        - name: email
+          in: query
+          required: true
+          type: string
+          description: User e-mail address. Required if enabled by manager.
+          x-example: test123@testmail.com
+        - name: phone
+          in: query
+          required: true
+          type: string
+          description: >-
+            The phone number of the user in the following format [country
+            code]-[phone number]. Required if enabled by manager.
+          x-example: 7-9181234567
+        - name: phone2
+          in: query
+          required: false
+          type: string
+          description: >-
+            Additional phone number of the user in the following format [country
+            code]-[phone number]. Required if enabled by manager.
+          x-example: 7-9181234567
+        - name: gender
+          in: query
+          required: false
+          type: number
+          description: >-
+            Gender, 0 - male, 1 - female, 2 - other'
+          x-example: 0
+        - name: birthday_day
+          in: query
+          required: true
+          type: string
+          description: >-
+            User birthday day (valid day number, 1-31). Required if enabled by manager.
+        - name: birthday_month
+          in: query
+          required: true
+          type: string
+          description: >-
+            User birthday month number (1 - January .. 12 - December). Required if enabled by manager.
+        - name: birthday_year
+          in: query
+          required: true
+          type: string
+          description: >-
+            User birthday year, valid year number, from 1917 to current year. Required if enabled by manager.
+        - name: country_nationality
+          in: query
+          required: true
+          type: string
+          description: >-
+            Country of citizenship, iso2 code. Required if enabled by manager.
+        - name: country_residence
+          in: query
+          required: false
+          type: string
+          description: Country of residence, iso2 code
+        - name: city
+          in: query
+          required: false
+          type: string
+          description: City
+        - name: address
+          in: query
+          required: false
+          type: string
+          description: Address
+        - name: address2
+          in: query
+          required: false
+          type: string
+          description: Aditional address
+        - name: zip
+          in: query
+          required: false
+          type: string
+          description: Index
+        - name: document_number
+          in: query
+          required: false
+          type: string
+          description: ID document number
+        - name: issue_date
+          in: query
+          required: false
+          type: string
+          description: Date format YYYY-MM-DD (Ex. 2006-01-02) Identification  Issue Date
+        - name: expiration_date
+          in: query
+          required: false
+          type: string
+          description: Date format YYYY-MM-DD (Ex. 2006-01-02) Identification Expiration Date
+        - name: document_issuer
+          in: query
+          required: false
+          type: string
+          description: ID document issuer
+      responses:
+        '200':
+          description: Status 200
+          schema:
+            required:
+              - status
+              - user_hash
+              - url
+            type: object
+            properties:
+              status:
+                type: string
+                description: Request status
+                example: ok
+              user_hash:
+                type: string
+                description: Unique user hash
+                example: 9146288d95b60ffa6d043ed7c9b8cf07bd1edaf7
+              url:
+                type: string
+                description: Widget URL
+                example: https://api.basisid.com/auth/widget/prod-XXXXXXXX/7c632976-2a45-0a55-b2d9-73fcdf9zzas3/multi
+              errors:
+                type: array
+                description: >-
+                  Error values (for status: bad)
+
+                    "error:key" -  API_KEY is not specified
+
+                    "empty:first_name" -  first name is not specified
+
+                    "empty:last_name" - last name is not specified
+
+                    "empty:phone" - phone number is not specified
+
+                    "empty:email" - e-mail is not specified or wrong
+
+                    "empty:birthday_day" - date of birth error
+
+                    "empty:birthday_month" - month of birth error
+
+                    "empty:birthday_year" - year of birth error
+
+                    "error:country_nationality" - wrong country of nationality
+
+                    "user:exists" -  user with this e-mail/phone number already exists"
+          examples:
+            application/json:
+              status: ok
+              user_hash: 9146288d95b60ffa6d043ed7c9b8cf07bd1edaf7
+              url: https://api.basisid.com/auth/widget/prod-XXXXXXXX/7c632976-2a45-0a55-b2d9-73fcdf9zzas3/multi
+        '400':
+          description: >-
+            Bad request - input error (could not parse the JSON input request)
+        '500':
+          description: >-
+            Internal Server Error - problem with processing data on server.
+            Please, contact with support team
+      x-code-samples:
+        - lang: Curl
+          source: |
+            curl \
+                -H "Content-Type: application/json" \
+                -X POST -d '{"key": "API_KEY", "secret": "SECRET1"}' \
+                https://api.basisid.com/auth/request-widget
+        - lang: Curl (with fields)
+          source: |
+            curl \
+                -H "Content-Type: application/json" \
+                -X POST -d '{"key": "API_KEY", "secret": "SECRET1", "first_name": "John", "last_name": "Doe", "middle_name": "", "email": "johndoe777@testdemo.com", "phone": "+79998885566", "phone2": "", "gender": 0, "birthday_day": "01", "birthday_month": "07", "birthday_year": "1983", "country_nationality": "SG", "country_residence": "SG", "city": "Singapore", "address": "Last Street, 19-99", "zip": "54321"}' \
+                https://api.basisid.com/auth/request-widget
+  /users/info/{id}/{api_key}/{signature}:
+    get:
+      tags:
+        - receive data
+      summary: Get user profile information
+      description: >-
+        Returns user profile information for defined company.
+      operationId: get-user-info
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          description: user_hash or email
+          x-example: b84caa8cb9097361b89509c7395be1e7f7743442 | email@example.com
+        - name: api_key
+          in: path
+          required: true
+          type: string
+          description: Company ApiKey
+          x-example: prod-d67b6cd3-7255-4203-b351-3bd26233dcc8
+        - name: signature
+          in: path
+          required: true
+          type: string
+          description: Request sha256 signature. Calculated as sha256(id+BASIS_API_SECRET2)
+          x-example: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+      responses:
+        '200':
+          description: Status 200
+          schema:
+            required:
+              - status
+              - profile
+              - user_status
+              - basis_status
+              - autocheck_status
+            type: object
+            properties:
+              status:
+                type: string
+                description: >-
+                  Request status
+                  "ok" - No errors found.
+
+                  Error statuses:
+                  "company_not_found" -  company not found.
+                  "wrong_signature" -  wrong signature
+                  "user_not_found" - user with defined user hash or email not found
+                example: ok
+              user_status:
+                type: number
+                description: User status
+                example: 10
+              basis_status:
+                type: number
+                description: BASIS ID status
+                example: 11
+              autocheck_status:
+                type: number
+                description: User profile auto verification status
+                example: 0
+              profile:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: user uniq id
+                  user_hash:
+                    type: string
+                    description: user hash
+                  first_name:
+                    type: string
+                    description: first name
+                  last_name:
+                    type: string
+                    description: last name
+                  middle_name:
+                    type: string
+                    description: middle name
+                  email:
+                    type: string
+                    description: email address
+                  email_confirmed:
+                    type: bool
+                    description: email address confirmed flag
+                  phone:
+                    type: string
+                    description: phone number
+                  phone2:
+                    type: string
+                    description: additional phone number
+                  gender:
+                    type: string
+                    description: gender
+                  address:
+                    type: string
+                    description: address line1
+                  address2:
+                    type: string
+                    description: address line2
+                  autocheck_bad_reasons:
+                    type: string
+                    description: the reason for the request to be automatically declined
+                  birthday:
+                    type: string
+                    description: date of birth, YYYY-MM-DD
+                  city:
+                    type: string
+                    description: city
+                  state:
+                    type: string
+                    description: state
+                  country:
+                    type: string
+                    description: country code, ISO2
+                  country_residence:
+                    type: string
+                    description: residence country code, ISO2
+                  zip:
+                    type: string
+                    description: post code
+
+          examples:
+            application/json:
+              status: "ok"
+              profile:
+                id: "9142"
+                user_hash: "222fc57c643d5dd86bb473ee729a52c95476fea3"
+                address: ""
+                address2: ""
+                autocheck_bad_reasons: ""
+                birthday: "1990-07-14"
+                city: ""
+                country: "ee"
+                country_residence: ""
+                email: "john@smith.com"
+                email_confirmed: "true"
+                first_name: "John"
+                last_name: "Smith"
+                gender: "male"
+                middle_name: ""
+                phone: "110011212"
+                phone2: ""
+                zip: ""
+              user_status: 11
+              basis_status: 10
+              autocheck_status: 0
+        '400':
+          description: >-
+            Bad request - input error (could not parse the JSON input request)
+        '500':
+          description: >-
+            Internal Server Error - problem with processing data on server.
+            Please, contact with support team - support@basisid.com
+      x-code-samples:
+        - lang: Curl
+          source: |
+            curl https://api.basisid.com/users/info/email@example.com/d67b6cd3-7255-4203-b351-3bd26233dcc8/a956bd8dceff54384a065dc6ec183ddf52302e4613e634769cfeebfdc87c1677
+
